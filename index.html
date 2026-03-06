@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>Useless Gravity UI</title>
+    <style>
+    /* 1. Arka Plan: Nostaljik Noktalı Doku */
+    body {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        background-color: #d4d4d4; /* Eski gri tonu */
+        background-image: radial-gradient(#9c9c9c 1px, transparent 1px);
+        background-size: 20px 20px; /* Görseldeki o meşhur noktalı doku */
+        font-family: "Times New Roman", Times, serif; /* Serif font şart */
+        margin: 0;
+    }
+
+    /* 2. Konteyner: Klasik Pencere Görünümü */
+    .container {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 30px;
+        background: #e0e0e0;
+        padding: 40px;
+        border: 2px solid #000; /* Kalın siyah çerçeve */
+        box-shadow: 4px 4px 0px #888; /* Derinlik veren gölge */
+    }
+
+    /* Başlık Eklemesi (İsteğe Bağlı) */
+    .container::before {
+        content: "Mechanical Volume Control v1.0";
+        position: absolute;
+        top: -25px;
+        left: 0;
+        font-weight: bold;
+        font-size: 14px;
+        color: #333;
+    }
+
+    .pulley-system {
+        position: relative;
+        width: 80px;
+        height: 60px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    /* 3. Makara ve Ağırlık: Endüstriyel Detaylar */
+    .pulley {
+        width: 44px;
+        height: 44px;
+        border: 3px solid #000;
+        border-radius: 50%;
+        background: radial-gradient(circle, #bbb 30%, #444 100%); /* Metalik efekt */
+        box-sizing: border-box;
+        z-index: 2;
+        margin-top: 8px; /* pull pulley slightly down */
+    }
+
+    #weight {
+        position: absolute;
+        top: 120px;
+        left: 12%;
+        transform: translateX(-50%);
+        width: 60px;
+        height: 40px;
+        background: #333; /* Ağır demir rengi */
+        color: #ffcc00; /* Klasik sarı uyarı yazısı */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        font-weight: bold;
+        border: 2px solid #000;
+        clip-path: polygon(15% 0%, 85% 0%, 100% 100%, 0% 100%); /* Gülle/Ağırlık şekli */
+        z-index: 2;
+    }
+
+    /* 4. İpler: Daha Belirgin Siyah Çizgiler */
+    #rope {
+    position: absolute;
+    top: 30px; /* Makara ortasından başlasın */
+    left: 50%;
+    transform: translateX(-50%);
+    width: 2px;
+    height: 90px;
+    background: #000;
+    z-index: 0; /* Makaradan sonra gözüksün */
+}
+
+#rope-horizontal {
+    position: absolute;
+    top: 20px;
+    left: 40px;
+    height: 2px;
+    width: 0px;
+    background: #000;
+    z-index: 1;
+}
+
+    /* 5. Slider: Turuncu "Bad UI" Rengi */
+    input[type="range"] {
+        -webkit-appearance: none;
+        width: 250px;
+        height: 8px;
+        background: #888;
+        border: 2px solid #000;
+        outline: none;
+    }
+
+    /* Slider Düğmesi (Thumb) */
+    input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 24px;
+        height: 24px;
+        background: #ff4500; /* Görseldeki turuncu renk */
+        border: 2px solid #fff;
+        border-radius: 50%;
+        box-shadow: 2px 2px 0px #000;
+        cursor: pointer;
+       
+    }
+
+    #value-display {
+        font-size: 28px;
+        font-weight: bold;
+        color: #000;
+        min-width: 60px;
+        border-bottom: 2px solid #000; /* Eski veri giriş alt çizgisi */
+    }
+</style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="pulley-system">
+            <div class="pulley"></div>
+            <div id="rope"></div>
+            <div id="rope-horizontal"></div>
+            <div id="weight">20KG</div>
+        </div>
+        
+        <input type="range" id="volume-slider" min="0" max="100" value="0">
+        <div id="value-display">0%</div>
+    </div>
+
+    <script>
+        const slider = document.getElementById('volume-slider');
+const weight = document.getElementById('weight');
+const rope = document.getElementById('rope');
+const display = document.getElementById('value-display');
+
+let velocity = 0;
+let gravity = 0.008; // smaller gravity for slower decay
+let pulling = false;
+
+const hrope = document.getElementById("rope-horizontal");
+const pulley = document.querySelector('.pulley');
+const container = document.querySelector('.container');
+
+let baseRopeHeight = 60; // fallback
+
+// smoothing values: higher = faster
+const smoothingPull = 0.25; // when user drags
+const smoothingRelease = 0.04; // when releasing (slower)
+
+let rawValue = parseFloat(slider.value);
+let visualValue = rawValue;
+
+function computeBaseDims(){
+    const pulleySystem = pulley.parentElement; // .pulley-system
+    const psRect = pulleySystem.getBoundingClientRect();
+    const pulleyRect = pulley.getBoundingClientRect();
+    const weightRect = weight.getBoundingClientRect();
+
+    // pulley center relative to pulley-system
+    const pulleyCenterY_rel = (pulleyRect.top + pulleyRect.height / 2) - psRect.top;
+    const pulleyCenterX_rel = (pulleyRect.left + pulleyRect.width / 2) - psRect.left;
+
+    // distance from pulley center to weight top (in page coords)
+    baseRopeHeight = Math.max(4, weightRect.top - (pulleyRect.top + pulleyRect.height / 2));
+
+    // position vertical rope start at pulley center (relative to pulley-system)
+    rope.style.top = pulleyCenterY_rel + 'px';
+
+    // position horizontal rope vertically centered on pulley center
+    hrope.style.top = (pulleyCenterY_rel - (hrope.offsetHeight / 2 || 1)) + 'px';
+
+    // set horizontal rope left starting point at pulley center (relative to pulley-system)
+    hrope.style.left = pulleyCenterX_rel + 'px';
+}
+
+function updateVisuals(val){
+    val = parseFloat(val);
+
+    display.innerText = Math.round(val) + "%";
+
+    const liftFactor = 0.35; // slower weight movement
+    const lift = val * liftFactor;
+
+    weight.style.transform = `translateY(-${lift}px)`;
+
+    // update vertical rope length based on computed base and lift
+    const newV = Math.max(4, baseRopeHeight - lift);
+    rope.style.height = newV + "px";
+
+    // compute horizontal rope width between pulley center and slider thumb
+    const pulleySystem = pulley.parentElement;
+    const psRect = pulleySystem.getBoundingClientRect();
+    const pulleyRect = pulley.getBoundingClientRect();
+    const sliderRect = slider.getBoundingClientRect();
+
+    const pulleyCenterX_rel = (pulleyRect.left + pulleyRect.width / 2) - psRect.left;
+    const percent = val / 100;
+    const thumbWidth = 24; 
+const thumbCenterOffset = thumbWidth / 2;
+
+const thumbX_rel = (sliderRect.left - psRect.left) + (percent * (slider.offsetWidth - thumbWidth)) + thumbCenterOffset;
+
+    const width = Math.max(0, thumbX_rel - pulleyCenterX_rel);
+    hrope.style.left = pulleyCenterX_rel + 'px';
+    hrope.style.width = width + 'px';
+}
+
+slider.addEventListener("input", () => {
+    pulling = true;
+    velocity = 0;
+    rawValue = parseFloat(slider.value);
+});
+
+slider.addEventListener("pointerup", () => {
+    pulling = false;
+});
+
+slider.addEventListener("pointerdown", () => {
+    pulling = true;
+    rawValue = parseFloat(slider.value);
+});
+
+function gravityLoop(){
+    if(!pulling){
+        velocity += gravity;
+        rawValue = Math.max(0, rawValue - velocity);
+        if(rawValue === 0) velocity = 0;
+    } else {
+        // when pulling, ensure rawValue follows the immediate slider value
+        rawValue = parseFloat(slider.value);
+    }
+
+    const smoothing = pulling ? smoothingPull : smoothingRelease;
+    visualValue += (rawValue - visualValue) * smoothing;
+
+    // reflect the smooth visualValue back to the actual slider so thumb moves slowly
+    slider.value = visualValue;
+
+    updateVisuals(visualValue);
+
+    requestAnimationFrame(gravityLoop);
+}
+
+gravityLoop();
+// compute dimensions and position horizontal rope initially
+computeBaseDims();
+updateVisuals(slider.value);
+
+window.addEventListener('resize', () => {
+    computeBaseDims();
+    updateVisuals(slider.value);
+});
+    </script>
+
+</body>
+</html>
