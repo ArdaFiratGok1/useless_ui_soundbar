@@ -31,7 +31,7 @@
 
     /* Başlık Eklemesi (İsteğe Bağlı) */
     .container::before {
-        content: "Mechanical Volume Control v1.0";
+        content: "Volume Control Bar (?)";
         position: absolute;
         top: -25px;
         left: 0;
@@ -57,8 +57,12 @@
         border-radius: 50%;
         background: radial-gradient(circle, #bbb 30%, #444 100%); /* Metalik efekt */
         box-sizing: border-box;
-        z-index: 2;
+        z-index: 3;
         margin-top: 8px; /* pull pulley slightly down */
+        background-image:url("sound_icon.png");
+        background-size:contain;
+        background-repeat:no-repeat;
+        background-position:center;
     }
 
     #weight {
@@ -143,6 +147,8 @@
             <div id="rope-horizontal"></div>
             <div id="weight">20KG</div>
         </div>
+
+        
         
         <input type="range" id="volume-slider" min="0" max="100" value="0">
         <div id="value-display">0%</div>
@@ -191,7 +197,7 @@ function computeBaseDims(){
     hrope.style.top = (pulleyCenterY_rel - (hrope.offsetHeight / 2 || 1)) + 'px';
 
     // set horizontal rope left starting point at pulley center (relative to pulley-system)
-    hrope.style.left = pulleyCenterX_rel + 'px';
+    hrope.style.left = pulleyCenterX_rel+ 'px';
 }
 
 function updateVisuals(val){
